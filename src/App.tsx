@@ -8,6 +8,8 @@ const LOGO_URL = "https://lh3.googleusercontent.com/aida-public/AB6AXuCN8pKHCJ2Q
 const ADMIN_SHARED_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined) || 'kemzeugillesparfait@gmail.com';
 const ADMIN_SHARED_PASSWORD = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined) || '123456';
 const ADMIN_SESSION_CACHE_MS = 2 * 60 * 1000;
+const ADMIN_DEFAULT_PIN = '1966';
+const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) || '';
 const HERO_PREMIUM_SLIDES = [
   {
     title: 'Pokemon 151 Collector Drop',
@@ -475,7 +477,15 @@ const STORAGE_KEYS = {
   cart: 'ctcg:v1:cart',
   notifications: 'ctcg:v1:notifications',
   orders: 'ctcg:v1:orders',
+  adminPinHash: 'ctcg:v1:admin_pin_hash',
+  pushEnabled: 'ctcg:v1:push_enabled',
+  pushSubscription: 'ctcg:v1:push_subscription',
 } as const;
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
 
 type ChatMessage = {
   id: string;
@@ -508,6 +518,28 @@ function safeJsonParse<T>(value: string | null): T | null {
   } catch {
     return null;
   }
+}
+
+async function hashPin(pin: string): Promise<string> {
+  if (!window.crypto?.subtle) {
+    return btoa(pin);
+  }
+  const encoded = new TextEncoder().encode(pin);
+  const digest = await window.crypto.subtle.digest('SHA-256', encoded);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const normalized = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(normalized);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
 }
 
 function safeLocalStorageGet<T>(key: string): T | null {
@@ -583,6 +615,13 @@ export default function App() {
   const [logoClicks, setLogoClicks] = useState(0);
   const [showAdminPinGate, setShowAdminPinGate] = useState(false);
   const [adminPin, setAdminPin] = useState('');
+  const [adminPinHash, setAdminPinHash] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(STORAGE_KEYS.adminPinHash);
+    } catch {
+      return null;
+    }
+  });
   const [adminUnlocked, setAdminUnlocked] = useState(() => {
     try {
       return window.sessionStorage.getItem('ctcg:v1:admin_unlocked') === '1';
@@ -1429,9 +1468,54 @@ export default function App() {
     }
   };
 
+  const verifyAdminPin = async (pin: string) => {
+    const normalizedPin = pin.trim();
+    if (!/^\d{4}$/.test(normalizedPin)) return false;
+    if (!adminPinHash) return normalizedPin === ADMIN_DEFAULT_PIN;
+    const hashedPin = await hashPin(normalizedPin);
+    return hashedPin === adminPinHash;
+  };
+
+  const updateAdminPin = async (currentPin: string, nextPin: string): Promise<{ ok: boolean; message: string }> => {
+    const normalizedCurrent = currentPin.trim();
+    const normalizedNext = nextPin.trim();
+    if (!/^\d{4}$/.test(normalizedCurrent) || !/^\d{4}$/.test(normalizedNext)) {
+      return { ok: false, message: 'PIN must be exactly 4 digits.' };
+    }
+    if (normalizedCurrent === normalizedNext) {
+      return { ok: false, message: 'New PIN must be different from current PIN.' };
+    }
+    const currentValid = await verifyAdminPin(normalizedCurrent);
+    if (!currentValid) {
+      return { ok: false, message: 'Current PIN is incorrect.' };
+    }
+    const nextHashed = await hashPin(normalizedNext);
+    setAdminPinHash(nextHashed);
+    safeLocalStorageSet(STORAGE_KEYS.adminPinHash, nextHashed);
+    return { ok: true, message: 'Admin PIN updated successfully.' };
+  };
+
+  const resetAdminPin = async (currentPin: string): Promise<{ ok: boolean; message: string }> => {
+    const normalizedCurrent = currentPin.trim();
+    if (!/^\d{4}$/.test(normalizedCurrent)) {
+      return { ok: false, message: 'Current PIN must be 4 digits.' };
+    }
+    const currentValid = await verifyAdminPin(normalizedCurrent);
+    if (!currentValid) {
+      return { ok: false, message: 'Current PIN is incorrect.' };
+    }
+    setAdminPinHash(null);
+    try {
+      window.localStorage.removeItem(STORAGE_KEYS.adminPinHash);
+    } catch {
+      // ignore
+    }
+    return { ok: true, message: 'Admin PIN reset to default.' };
+  };
+
   const submitAdminPin = async (inputPin?: string) => {
     const pinToVerify = inputPin || adminPin;
-    if (pinToVerify.trim() === '1966') {
+    if (await verifyAdminPin(pinToVerify)) {
       setAdminUnlocked(true);
       try {
         window.sessionStorage.setItem('ctcg:v1:admin_unlocked', '1');
@@ -1708,6 +1792,9 @@ export default function App() {
               }}
               onDelete={deleteProduct}
               orders={orders}
+              onChangeAdminPin={updateAdminPin}
+              onResetAdminPin={resetAdminPin}
+              hasCustomPin={Boolean(adminPinHash)}
             />
           ) : currentView === 'chat' ? (
             <ChatInterface onBack={goBack} userId={userId} />
@@ -2741,14 +2828,14 @@ function VisitorPanel() {
     return acc;
   }, {});
   const uniqueVisitors = Object.keys(countByIp).length;
-  const returningVisitors = Object.values(countByIp).filter((count) => count > 1).length;
-  const topCountries = Object.entries(
+  const returningVisitors = (Object.values(countByIp) as number[]).filter((count) => count > 1).length;
+  const topCountries = (Object.entries(
     visitors.reduce((acc: Record<string, number>, v) => {
       const country = String(v.country ?? 'unknown');
       acc[country] = (acc[country] ?? 0) + 1;
       return acc;
     }, {})
-  ).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  ) as Array<[string, number]>).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
   const exportCsv = () => {
     if (visitors.length === 0) return;
@@ -2854,7 +2941,29 @@ function VisitorPanel() {
   );
 }
 
-function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, orders }: { products: Product[], onAddNew: () => void, onEdit: (p: Product) => void, onDelete: (id: number) => void, onBack: () => void, onChat: () => void, orders: any[] }) {
+function AdminDashboard({
+  products,
+  onAddNew,
+  onEdit,
+  onDelete,
+  onBack,
+  onChat,
+  orders,
+  onChangeAdminPin,
+  onResetAdminPin,
+  hasCustomPin,
+}: {
+  products: Product[],
+  onAddNew: () => void,
+  onEdit: (p: Product) => void,
+  onDelete: (id: number) => void,
+  onBack: () => void,
+  onChat: () => void,
+  orders: any[],
+  onChangeAdminPin: (currentPin: string, nextPin: string) => Promise<{ ok: boolean; message: string }>,
+  onResetAdminPin: (currentPin: string) => Promise<{ ok: boolean; message: string }>,
+  hasCustomPin: boolean,
+}) {
   const [unreadChats, setUnreadChats] = useState(0);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inbox' | 'inventory' | 'settings'>('dashboard');
   const [adminOrders, setAdminOrders] = useState<any[]>([]);
@@ -2868,6 +2977,20 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
     guardedMode: true,
     compactCards: false
   });
+  const [pinForm, setPinForm] = useState({
+    current: '',
+    next: '',
+    confirm: '',
+  });
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState<boolean>(() => safeLocalStorageGet<boolean>(STORAGE_KEYS.pushEnabled) ?? false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
+    if (typeof Notification === 'undefined') return 'default';
+    return Notification.permission;
+  });
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const unreadSnapshotRef = useRef<number | null>(null);
+  const orderSnapshotRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -3017,9 +3140,224 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
   const inStockCount = products.filter((p) => p.inStock).length;
   const outOfStockCount = products.length - inStockCount;
   const totalRevenue = adminOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+  const totalActiveOrders = adminOrders.length || orders.length;
   const toggleAdminPreference = (key: keyof typeof adminPreferences) => {
     setAdminPreferences((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+  const setPinField = (field: keyof typeof pinForm, value: string) => {
+    setPinForm((prev) => ({ ...prev, [field]: value.replace(/\D/g, '').slice(0, 4) }));
+  };
+
+  const ensureServiceWorkerRegistration = async (): Promise<ServiceWorkerRegistration | null> => {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+      return (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register('/sw.js'));
+    } catch (error) {
+      console.error('Service worker registration failed:', error);
+      return null;
+    }
+  };
+
+  const showSystemNotification = async (title: string, body: string, tag: string) => {
+    if (notificationPermission !== 'granted') return;
+    const registration = await ensureServiceWorkerRegistration();
+    if (!registration) return;
+    try {
+      await registration.showNotification(title, {
+        body,
+        icon: '/icons/icon.svg',
+        badge: '/icons/badge.svg',
+        tag,
+        data: { url: '/admin' },
+      });
+    } catch (error) {
+      console.error('Notification display failed:', error);
+    }
+  };
+
+  const enableScreenNotifications = async () => {
+    if (typeof Notification === 'undefined') {
+      emitToast('This browser does not support notifications.', 'error');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+    if (permission !== 'granted') {
+      setPushEnabled(false);
+      safeLocalStorageSet(STORAGE_KEYS.pushEnabled, false);
+      emitToast('Notification permission was not granted.', 'error');
+      return;
+    }
+
+    const registration = await ensureServiceWorkerRegistration();
+    if (!registration) {
+      emitToast('Service worker unavailable. Push setup failed.', 'error');
+      return;
+    }
+
+    if ('PushManager' in window && VAPID_PUBLIC_KEY) {
+      try {
+        const currentSubscription = await registration.pushManager.getSubscription();
+        const nextSubscription = currentSubscription || await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+        safeLocalStorageSet(STORAGE_KEYS.pushSubscription, nextSubscription.toJSON());
+      } catch (error) {
+        console.error('Push subscription failed:', error);
+      }
+    }
+
+    setPushEnabled(true);
+    safeLocalStorageSet(STORAGE_KEYS.pushEnabled, true);
+    emitToast('Screen notifications enabled on this device.', 'success');
+    await showSystemNotification('Notifications Enabled', 'You will receive admin alerts on this phone.', 'admin-alert-ready');
+  };
+
+  const disableScreenNotifications = async () => {
+    const registration = await ensureServiceWorkerRegistration();
+    if (registration && 'PushManager' in window) {
+      try {
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          await subscription.unsubscribe();
+        }
+      } catch (error) {
+        console.error('Push unsubscribe failed:', error);
+      }
+    }
+    setPushEnabled(false);
+    safeLocalStorageSet(STORAGE_KEYS.pushEnabled, false);
+    try {
+      window.localStorage.removeItem(STORAGE_KEYS.pushSubscription);
+    } catch {
+      // ignore
+    }
+    emitToast('Screen notifications disabled on this device.', 'info');
+  };
+
+  const sendTestNotification = async () => {
+    if (notificationPermission !== 'granted') {
+      emitToast('Enable notifications first.', 'error');
+      return;
+    }
+    await showSystemNotification(
+      'Pokemon Admin Alert',
+      `Unread chats: ${unreadChats} | Active orders: ${totalActiveOrders}`,
+      'admin-alert-test'
+    );
+    emitToast('Test notification sent.', 'success');
+  };
+
+  const submitPinChange = async () => {
+    if (pinSaving) return;
+    const currentPin = pinForm.current.trim();
+    const nextPin = pinForm.next.trim();
+    const confirmPin = pinForm.confirm.trim();
+    if (!/^\d{4}$/.test(currentPin) || !/^\d{4}$/.test(nextPin)) {
+      emitToast('PIN must be exactly 4 digits.', 'error');
+      return;
+    }
+    if (nextPin !== confirmPin) {
+      emitToast('New PIN confirmation does not match.', 'error');
+      return;
+    }
+
+    setPinSaving(true);
+    const result = await onChangeAdminPin(currentPin, nextPin);
+    setPinSaving(false);
+    emitToast(result.message, result.ok ? 'success' : 'error');
+    if (result.ok) {
+      setPinForm({ current: '', next: '', confirm: '' });
+    }
+  };
+
+  const resetPinToDefault = async () => {
+    if (pinSaving) return;
+    const currentPin = pinForm.current.trim();
+    if (!/^\d{4}$/.test(currentPin)) {
+      emitToast('Enter current PIN to reset.', 'error');
+      return;
+    }
+    setPinSaving(true);
+    const result = await onResetAdminPin(currentPin);
+    setPinSaving(false);
+    emitToast(result.message, result.ok ? 'success' : 'error');
+    if (result.ok) {
+      setPinForm({ current: '', next: '', confirm: '' });
+    }
+  };
+
+  const installAsApp = async () => {
+    if (!installPromptEvent) {
+      emitToast('Install prompt unavailable. Use browser menu: Add to Home screen.', 'info');
+      return;
+    }
+    await installPromptEvent.prompt();
+    const choice = await installPromptEvent.userChoice;
+    if (choice.outcome === 'accepted') {
+      emitToast('App installation started.', 'success');
+      setInstallPromptEvent(null);
+    } else {
+      emitToast('Install prompt dismissed.', 'info');
+    }
+  };
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      const promptEvent = event as BeforeInstallPromptEvent;
+      promptEvent.preventDefault();
+      setInstallPromptEvent(promptEvent);
+    };
+    const handleInstalled = () => {
+      setInstallPromptEvent(null);
+      emitToast('App installed on device.', 'success');
+    };
+    const updatePermissionState = () => {
+      if (typeof Notification !== 'undefined') {
+        setNotificationPermission(Notification.permission);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+    window.addEventListener('appinstalled', handleInstalled);
+    document.addEventListener('visibilitychange', updatePermissionState);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+      window.removeEventListener('appinstalled', handleInstalled);
+      document.removeEventListener('visibilitychange', updatePermissionState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (unreadSnapshotRef.current === null || orderSnapshotRef.current === null) {
+      unreadSnapshotRef.current = unreadChats;
+      orderSnapshotRef.current = totalActiveOrders;
+      return;
+    }
+    if (!adminPreferences.liveAlerts || !pushEnabled || notificationPermission !== 'granted') {
+      unreadSnapshotRef.current = unreadChats;
+      orderSnapshotRef.current = totalActiveOrders;
+      return;
+    }
+
+    if (unreadChats > unreadSnapshotRef.current) {
+      void showSystemNotification(
+        'New Customer Message',
+        `You have ${unreadChats} unread customer message${unreadChats > 1 ? 's' : ''}.`,
+        'admin-alert-chat'
+      );
+    }
+    if (totalActiveOrders > orderSnapshotRef.current) {
+      void showSystemNotification(
+        'New Order Received',
+        `Active orders moved to ${totalActiveOrders}.`,
+        'admin-alert-orders'
+      );
+    }
+    unreadSnapshotRef.current = unreadChats;
+    orderSnapshotRef.current = totalActiveOrders;
+  }, [unreadChats, totalActiveOrders, adminPreferences.liveAlerts, pushEnabled, notificationPermission]);
 
   return (
     <motion.div
@@ -3346,6 +3684,86 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
           </div>
 
           <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">Admin PIN Security</h4>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Set a private 4-digit PIN for admin entry. Current mode: {hasCustomPin ? 'Custom PIN' : 'Default PIN'}.</p>
+              </div>
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${hasCustomPin ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'}`}>
+                {hasCustomPin ? 'CUSTOM' : 'DEFAULT'}
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2.5">
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                value={pinForm.current}
+                onChange={(e) => setPinField('current', e.target.value)}
+                placeholder="Current PIN"
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200"
+              />
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                value={pinForm.next}
+                onChange={(e) => setPinField('next', e.target.value)}
+                placeholder="New PIN"
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200"
+              />
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                value={pinForm.confirm}
+                onChange={(e) => setPinField('confirm', e.target.value)}
+                placeholder="Confirm New PIN"
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200"
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={() => void submitPinChange()}
+                disabled={pinSaving}
+                className="rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-3.5 py-2 text-xs font-bold hover:brightness-110 transition-all disabled:opacity-60"
+              >
+                {pinSaving ? 'Updating...' : 'Update PIN'}
+              </button>
+              <button
+                onClick={() => void resetPinToDefault()}
+                disabled={pinSaving}
+                className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3.5 py-2 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+              >
+                Reset To Default
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">Mobile Notifications & PWA</h4>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Enable lock-screen style alerts and install this admin panel as an app on your phone.</p>
+              </div>
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${pushEnabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                {pushEnabled ? 'ACTIVE' : 'OFF'}
+              </span>
+            </div>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Permission: <span className="font-semibold text-slate-700 dark:text-slate-200">{notificationPermission}</span> •
+              Live Alerts: <span className="font-semibold text-slate-700 dark:text-slate-200">{adminPreferences.liveAlerts ? 'ON' : 'OFF'}</span>
+            </p>
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <button onClick={() => void enableScreenNotifications()} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-3 py-2.5 text-xs font-bold hover:brightness-110 transition-all">Enable Alerts</button>
+              <button onClick={() => void sendTestNotification()} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Send Test</button>
+              <button onClick={() => void disableScreenNotifications()} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Disable Alerts</button>
+              <button onClick={() => void installAsApp()} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-2.5 text-xs font-bold hover:brightness-110 transition-all">Install App</button>
+            </div>
+            <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">For real background push when the app is closed, keep `VITE_VAPID_PUBLIC_KEY` configured and send push payloads to saved subscriptions.</p>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
             <h4 className="text-sm font-black text-slate-900 dark:text-white">Admin Quick Kit</h4>
             <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <button onClick={() => setActiveTab('dashboard')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Mission Board</button>
@@ -3353,7 +3771,7 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
               <button onClick={() => setActiveTab('inventory')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Inventory Lab</button>
               <button onClick={onAddNew} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-2.5 text-xs font-bold hover:brightness-110 transition-all">Add Product</button>
             </div>
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Live snapshot: {products.length} products, {adminOrders.length || orders.length} active orders, {unreadChats} unread chats.</p>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Live snapshot: {products.length} products, {totalActiveOrders} active orders, {unreadChats} unread chats.</p>
           </div>
         </div>
       )}
@@ -4826,4 +5244,3 @@ function SplashScreen() {
     </motion.div>
   );
 }
-
