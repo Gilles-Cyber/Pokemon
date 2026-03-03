@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-primary: #135bec;
+  --color-primary-content: #ffffff;
+  --color-primary-dark: #0e43ad;
+  --color-primary-light: #eef4ff;
+  --color-background-light: #f6f6f8;
+  --color-background-dark: #101622;
+  --color-surface-light: #ffffff;
+  --color-surface-dark: #1a2233;
+  --color-text-main: #111827;
+  --color-text-main-dark: #f9fafb;
+  --color-text-muted: #6b7280;
+  --color-text-muted-dark: #9ca3af;
+  --color-border-light: #e5e7eb;
+  --color-border-dark: #374151;
+
+  --font-display: "Spline Sans", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply font-display bg-background-light dark:bg-background-dark text-text-main dark:text-text-main-dark antialiased;
+    min-height: max(884px, 100dvh);
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .material-symbols-outlined.filled {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  @keyframes fade-in-up {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.8s ease-out forwards;
+  }
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* Safe Area Insets for Mobile Devices */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}

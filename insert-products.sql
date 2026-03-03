@@ -1,0 +1,136 @@
+-- Insert all current hardcoded products into Supabase
+-- Run this ONCE in Supabase Dashboard -> SQL Editor -> New query
+
+insert into public.products (
+  id,
+  name,
+  description,
+  price,
+  lang,
+  series,
+  image,
+  thumbnails,
+  in_stock,
+  rating,
+  reviews
+) values
+  (
+    1,
+    'Silver Tempest Booster Box',
+    'Uncover the mystery of the deep in the Silver Tempest Booster Box. This sealed box contains 36 booster packs, each offering a chance to pull rare Lugia VSTAR and Alolan Vulpix VSTAR cards.',
+    140.00,
+    'Eng',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuDYjsqDdpF3v7wftG_7lQHRh2WZ4tvV_Srd48m8STAdJ-0S8ZQ0y1IMybRhuZJ9H-MjUTXrDBo3CZIyIvQ4Vkoqtps0chaM4KNnXGV5F6RXaIC2vmHxD09dmHSVdmA9WzURCqYYRJG1dG-Bi9wbhcPIVMb4fgGWc2vqIij8GbVUtKPSxQ_qgX0hwzgcsmuqFL_RkbAs9hkDc3nGEiKFr33ggvpU8BB5tY-6J9treqvkn0A3zvuOY7AsnRnsSTO19gFzrPQtWX4ZMnY',
+    array[
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuD7H5JTLRLh3kwVckpKLfFLF_VZ8QXUvsw4Q9B1Mhxx9wzYq69bp1OcfMQ4voe1taIgqp666xnFzdXEmcQpDUkW1Ax2FNOL4etIokZLg--QMfvm6W-c6OvkqOcSXFujX7UZiFRztLhDHT42iLj-yS0jYvlWM6xV6jHSlCEyIVSPhtpIpALU6078XPWP-QH07G3NL1qDEUcia-3g3Obwh62Yz6ri5xNvhfU-XIorHS3ZPH5NeyonuYbFW8s9-XQtoX4kE-6UAzJF1Bk',
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCuj2ROAdsVuhA6TWisBBCnY9YmjDVm-hPU8-7tAo98Lkf_OX_gO3KUpJZUuvrSS0TaWyOEEIrL7qMcMFSaGu9Kypc2Fc7p0X_8VoVQvtWR6zp5vDhNwIEwRij-rUhxOwnDVSJLSguziHM-mFBOdjAeuxdNNkh8Ts1UQQYPjJTtzqFdhUTT0M8_4MnNwINqyYX6IQ7H_l5tajLxT7c2VmvpfjOC-UVwlyz9OSZKM6HBKGJbKYitTrIRokCx0hUH_-l0napaH5h3BiQ'
+    ],
+    true,
+    4.8,
+    92
+  ),
+  (
+    2,
+    'Lost Origin Booster Box',
+    null,
+    180.00,
+    'Eng',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuBOe_AHLszFhNQdRC1O5HWJKuRHEfzG5fvTvyq99vXlI2wcWyq63T6YaadabCrCSYjQhOv--OCsNbOSNygIuS3qFaHWOY2SmuSyUDJKdr_G4FZnewOhe0-zxVh45iMcgqpqh9W1qP4-OEiGjn2QTuAV4Kht4zYOjhxABMp4p2PGRoqphTLHig8IVcAprbExw6iorW6S_Z6YASNZ6SZxqYWiw9V9J0kDSZZm2oVLCSQSfMCpENsMXfPL5VZQ5zrfRKSDIKPbDLxDbF8',
+    array[]::text[],
+    true,
+    null,
+    null
+  ),
+  (
+    3,
+    'Brilliant Stars Booster Box',
+    null,
+    160.00,
+    'Eng',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuDQ2O0Oh30YCgRAr73tn-X-0UGdAxtj6Et9ejZBWOGVVc5Z4oFy5SGa6Gt6gPxSg14XE5iP9M5dKmHCukgQEYoMAldW7pZPbZW2Fh3nZXVCCxQ3lxnTTQsYBWdvBngP92O3gJfftMQbY-HEBFopGFlRGRLacDpIwQdV1UcBp85ecS-LrNqkKwv8ML-te4RxURdJArlMdKjAIaUmp1TSLTCJZ0o3iJQMLba4lm3xCZaW-_hlcm9YsAzeXBTvfbQl7OfokzlvisdpjCE',
+    array[]::text[],
+    true,
+    null,
+    null
+  ),
+  (
+    4,
+    'Evolving Skies Booster Box',
+    null,
+    450.00,
+    'Eng',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuBLwUdzjYX7qApwYRtaXuX3n_TmFUhQY4uP530toSh6JJF16OSgV_mA-YYt9luAegOavXC5SLSJkrdeOqfvw7UOH8EVKcTJxGjZikoWzCTyUK1FhnybTK33SrnUPwWLkq7AtoE-5cvMEy2nfIja-2tKjMrnnhSQGDqTyfERwQLj4IinAEkt_F1WR0APCz4HGBaP6sG1bauJx3yzPAgPRPS94ZfvlnUGLaapiYn1aJgnp0PbsbdFet5y5Ibm0PrO5CXglOmfDCiFrLw',
+    array[]::text[],
+    false,
+    null,
+    null
+  ),
+  (
+    5,
+    'Fusion Strike Booster Box',
+    null,
+    120.00,
+    'Eng',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuBHEjLhEPpxnSthwyM5vQvfjh_5gIP_hYeDuOopB0mcXHresollbu_hraDhjLt40vcZ5QAcM7YhbgPhcWPBqYIUrRUWSIwUlvZJGm_h-tnUFa_zOPY0CmmtQrSSAsPhWnMFL60VNo0R3UIWrvyt8v9e_LNdSprzSmgzEiNBbEaCVyDMShZwg1EySfbLjdtXik0vHIKjqxkY50oL-1xj3giFrl0_T9WbYA07FE5PBkJhvCAple5DoQRX-XvBgHaNXDih86WCmqJhao0',
+    array[]::text[],
+    true,
+    null,
+    null
+  ),
+  (
+    6,
+    'Chilling Reign Booster Box',
+    null,
+    145.00,
+    'Eng',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuAA9fmzTYBLiOysFKVKVowHPMO_ymIUs1nmNKHUGbc-6ZxMOx7TKsoRFHWowEzRi5BZjyLcovD2FOKn1kjtThh8RzxADpyQXDdXwS719aqX8tEhUroyN0lwyz6zce4SI9AA9XInKyw0CFDTeanTeiD8cM3J6JtQ3ED8FwD9TxSfAa1Ls5KSuG_14f8o-fUmgUY3m_qAwW2vNUmAclCoFEgzNdBBfQaPgcdt9HK6e6PNNeOESuVEvPstYIttb9NqhWxQNIKhgs2OP2I',
+    array[]::text[],
+    true,
+    null,
+    null
+  ),
+  (
+    7,
+    'VMAX Climax Japanese Box',
+    null,
+    110.00,
+    'Jpn',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuBZIPxmrbgHLKJwa2Zr8mXCpKxS890q0f5_K7joqXn-Fa8J3iJJTw3nGXhLTp3o2P55OagFm2Ro6odlZ0TgCcaU_zj5KOK0ePdHvsycGvAbUqfciBz-crDaIAaZZVmLye6LqxjCVCvv3nHLNI7xjp1I0Jj7Lw1gazpB_plsCBtprjKYGcVQL4qJJTyHWgC7xBU5xrt-jyZWmwTh2TMRv6FsPqqirvZs-6sKfYeF2fmieybyFs43XgMjwonikp593BZ29FikUnK1FPI',
+    array[]::text[],
+    true,
+    null,
+    null
+  ),
+  (
+    8,
+    'Vivid Voltage Booster Box',
+    null,
+    130.00,
+    'Eng',
+    'Sword & Shield',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuAZpfU9IIDfISZRij9nq1zq5uIkiQQiG0F0gjHDcYmd8g3knG5_wobE0sCmm67VWqFDWq6aX967h0I4W67fddu1Pp8BhsaOYVIzV4J4UwqVl6j0IKyjcz_SKGoJqwzGOmS2neRER_Hb2Oyv7NgHcFUwt2HP0i8payi6oxypH1cv4sjs-WsR4vNycC2bAS_t7sRaLCaqgNpgya-Xhbfncki9pz2sEjsOTsIdVrsZdkEV3M8jAA3lkwQvK5iqVqOovDeU2YTUtqsKWbo',
+    array[]::text[],
+    true,
+    null,
+    null
+  ),
+  (
+    11,
+    '151 Ultra Premium Collection',
+    null,
+    119.99,
+    'Eng',
+    'Scarlet & Violet',
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuAY_bpB95tDoe4tnRxhaKwnuIUbXFKeeUSr_0d17LN2M8DVR95SOWmu-dfzMC-l3zcwfcGtdI-dFdWYwofoXQhGoMiCn0N-9jlBuaFK7ekvalFoRc46VMSFArPwPzceS0ZgTu10KOKh0vBtdsKZrx8L6fx6ThiKVYKy-JK40maLzklCrsl0WpdqmOJ2pMFAQuAoI89xtDCoMYQGvkp2aRMgZg4fe43AkNnSZtuNykPqXd9DMESS9n07_kc7OaAkGJN5wX0yw9oyo9o',
+    array[]::text[],
+    true,
+    null,
+    null
+  );
