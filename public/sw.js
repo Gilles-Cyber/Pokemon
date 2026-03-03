@@ -1,5 +1,5 @@
-const CACHE_NAME = 'pokemon-admin-cache-v1';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon.svg', '/icons/badge.svg'];
+const CACHE_NAME = 'pokemon-admin-cache-v2';
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/badge-96.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -57,8 +57,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Pokemon Admin Alert';
   const options = {
     body: data.body || 'You have a new update in your dashboard.',
-    icon: data.icon || '/icons/icon.svg',
-    badge: data.badge || '/icons/badge.svg',
+    icon: data.icon || '/icons/icon-192.png',
+    badge: data.badge || '/icons/badge-96.png',
     data: { url: data.url || '/admin' },
     tag: data.tag || 'pokemon-admin-alert',
     renotify: true,
@@ -88,8 +88,8 @@ self.addEventListener('message', (event) => {
   const payload = event.data.payload || {};
   self.registration.showNotification(payload.title || 'Pokemon Admin Alert', {
     body: payload.body || 'New activity available.',
-    icon: '/icons/icon.svg',
-    badge: '/icons/badge.svg',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/badge-96.png',
     data: { url: payload.url || '/admin' },
     tag: payload.tag || 'pokemon-admin-message',
   });

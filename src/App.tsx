@@ -477,6 +477,7 @@ const STORAGE_KEYS = {
   cart: 'ctcg:v1:cart',
   notifications: 'ctcg:v1:notifications',
   orders: 'ctcg:v1:orders',
+  deletedProducts: 'ctcg:v1:deleted_products',
   adminPinHash: 'ctcg:v1:admin_pin_hash',
   pushEnabled: 'ctcg:v1:push_enabled',
   pushSubscription: 'ctcg:v1:push_subscription',
@@ -568,17 +569,22 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeSeries, setActiveSeries] = useState("All Sets");
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [deletedProductIds, setDeletedProductIds] = useState<number[]>(() => {
+    const stored = safeLocalStorageGet<number[]>(STORAGE_KEYS.deletedProducts);
+    return Array.isArray(stored) ? stored.filter((id) => typeof id === 'number') : [];
+  });
   const [isProductsLoading, setIsProductsLoading] = useState(false);
 
   const PRODUCTS = React.useMemo(() => {
     // Merge mock + DB by id; DB wins, but fallback to mock media/text when DB fields are empty.
     const mockById = new Map(MOCK_PRODUCTS.map((p) => [Number(p.id), p]));
+    const deletedSet = new Set(deletedProductIds);
     const mergedIds = new Set<number>([
       ...MOCK_PRODUCTS.map((p) => Number(p.id)),
       ...dbProducts.map((p) => Number(p.id)),
     ]);
 
-    return Array.from(mergedIds).map((id) => {
+    return Array.from(mergedIds).filter((id) => !deletedSet.has(id)).map((id) => {
       const mock = mockById.get(id);
       const db = dbProducts.find((p) => Number(p.id) === id);
 
@@ -597,7 +603,7 @@ export default function App() {
         features: (db?.features && db.features.length > 0) ? db.features : (mock?.features ?? []),
       } as Product;
     });
-  }, [dbProducts]);
+  }, [dbProducts, deletedProductIds]);
 
   const [favorites, setFavorites] = useState<number[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -1138,16 +1144,34 @@ export default function App() {
     if (!supabase || !hasSupabaseConfig) return;
     if (!window.confirm('Are you sure you want to delete this product?')) return;
 
+    const productId = Number(id);
+    if (!Number.isFinite(productId)) {
+      showToast('Invalid product id', 'error');
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('products')
         .delete()
-        .eq('id', Number(id));
+        .eq('id', productId)
+        .select('id');
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        showToast('Delete failed: product was not found in Supabase.', 'error');
+        return;
+      }
+
       showToast('Product deleted successfully', 'success');
-      setDbProducts(prev => prev.filter(p => Number(p.id) !== Number(id)));
+      setDbProducts(prev => prev.filter((p) => Number(p.id) !== productId));
+      setDeletedProductIds((prev) => (prev.includes(productId) ? prev : [...prev, productId]));
     } catch (err: any) {
       console.error('Error deleting product:', err);
+      if (err?.code === '42501') {
+        showToast('Delete blocked by Supabase policy. Ensure this account is in admin_users.', 'error');
+        return;
+      }
       showToast(err.message || 'Error deleting product', 'error');
     }
   };
@@ -1441,6 +1465,10 @@ export default function App() {
   useEffect(() => {
     safeLocalStorageSet(STORAGE_KEYS.orders, orders);
   }, [orders]);
+
+  useEffect(() => {
+    safeLocalStorageSet(STORAGE_KEYS.deletedProducts, deletedProductIds);
+  }, [deletedProductIds]);
 
 
 
@@ -3165,8 +3193,8 @@ function AdminDashboard({
     try {
       await registration.showNotification(title, {
         body,
-        icon: '/icons/icon.svg',
-        badge: '/icons/badge.svg',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/badge-96.png',
         tag,
         data: { url: '/admin' },
       });
@@ -3758,8 +3786,13 @@ function AdminDashboard({
               <button onClick={() => void enableScreenNotifications()} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-3 py-2.5 text-xs font-bold hover:brightness-110 transition-all">Enable Alerts</button>
               <button onClick={() => void sendTestNotification()} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Send Test</button>
               <button onClick={() => void disableScreenNotifications()} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Disable Alerts</button>
-              <button onClick={() => void installAsApp()} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-2.5 text-xs font-bold hover:brightness-110 transition-all">Install App</button>
+              {installPromptEvent && (
+                <button onClick={() => void installAsApp()} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-2.5 text-xs font-bold hover:brightness-110 transition-all">Install App</button>
+              )}
             </div>
+            {!installPromptEvent && (
+              <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Install button is hidden because this device/browser does not currently expose the install prompt.</p>
+            )}
             <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">For real background push when the app is closed, keep `VITE_VAPID_PUBLIC_KEY` configured and send push payloads to saved subscriptions.</p>
           </div>
 
