@@ -1707,7 +1707,6 @@ export default function App() {
                 setShowProductModal(true);
               }}
               onDelete={deleteProduct}
-              onSettings={() => navigateToView('settings')}
               orders={orders}
             />
           ) : currentView === 'chat' ? (
@@ -2855,14 +2854,20 @@ function VisitorPanel() {
   );
 }
 
-function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, onSettings, orders }: { products: Product[], onAddNew: () => void, onEdit: (p: Product) => void, onDelete: (id: number) => void, onBack: () => void, onChat: () => void, onSettings: () => void, orders: any[] }) {
+function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, orders }: { products: Product[], onAddNew: () => void, onEdit: (p: Product) => void, onDelete: (id: number) => void, onBack: () => void, onChat: () => void, orders: any[] }) {
   const [unreadChats, setUnreadChats] = useState(0);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inbox' | 'inventory'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inbox' | 'inventory' | 'settings'>('dashboard');
   const [adminOrders, setAdminOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
   const [inventoryQuery, setInventoryQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'in' | 'out'>('all');
+  const [adminPreferences, setAdminPreferences] = useState({
+    liveAlerts: true,
+    smartRestockHints: true,
+    guardedMode: true,
+    compactCards: false
+  });
 
   useEffect(() => {
     if (!supabase) return;
@@ -3012,6 +3017,9 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
   const inStockCount = products.filter((p) => p.inStock).length;
   const outOfStockCount = products.length - inStockCount;
   const totalRevenue = adminOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+  const toggleAdminPreference = (key: keyof typeof adminPreferences) => {
+    setAdminPreferences((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   return (
     <motion.div
@@ -3049,27 +3057,15 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
               </span>
             )}
           </button>
-        </div>
-      </header>
-
-      <div className="px-4 pt-6 pb-2">
-        <div className="flex items-center gap-4 bg-gradient-to-r from-primary to-primary-dark text-white p-5 rounded-2xl shadow-lg shadow-primary/20">
-          <div className="relative">
-            <div
-              className="w-14 h-14 rounded-full border-2 border-white/30 bg-white/10 overflow-hidden bg-cover bg-center"
-              style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuC-24TSulWHfM-LmqV5wg56_Jn_owTGjpbGeuzizykJMro7xSRmmUjkPccceY9d7Dzr6JOWsnAy-wtA-QGyn-9MjuCdT4CIAov4T80nJJwH3KQgrZjUl5x-6UUVMGmVfxedwyogPNOOfqIw6-id3o6JFfD7zpqMQmVT7nwpOemQuH4416hNuiyj1f3fJOgIyuvo2DLkbIsUK4oM0QBSxPwILpStxU2KT7gP2278w4hQGKgn9dBqdW68QibzgLZyi4lSHDdoGzkSDOM")' }}
-            ></div>
-            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-success rounded-full border-2 border-primary-dark"></div>
-          </div>
-          <div className="flex-1">
-            <h2 className="font-bold text-xl">Hello, Chris!</h2>
-            <p className="text-primary-light text-sm opacity-90">Store Owner - Online</p>
-          </div>
-          <button onClick={onSettings} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg backdrop-blur-sm transition-colors">
-            <span className="material-symbols-outlined text-white">settings</span>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`p-2 rounded-full transition-colors ${activeTab === 'settings' ? 'text-primary bg-primary/10' : 'text-text-sub hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+            aria-label="Admin settings"
+          >
+            <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
-      </div>
+      </header>
 
       {activeTab === 'inbox' && (
         <AdminChatInbox onBack={() => setActiveTab('dashboard')} onUnreadChange={setUnreadChats} />
@@ -3077,47 +3073,86 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
 
       {activeTab === 'dashboard' && (
         <>
-          <div className="flex gap-3 overflow-x-auto px-4 py-4 no-scrollbar snap-x snap-mandatory">
-            <div className="min-w-[160px] flex-1 bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm snap-start">
-              <div className="flex items-start justify-between mb-2">
-                <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                  <span className="material-symbols-outlined text-xl">attach_money</span>
-                </div>
-                <span className="text-xs font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">Live</span>
+          <div className="px-4 pt-6 pb-2">
+            <section className="relative overflow-hidden rounded-3xl border border-cyan-200/70 dark:border-cyan-500/30 bg-gradient-to-br from-cyan-100 via-sky-50 to-emerald-100 dark:from-slate-900 dark:via-slate-950 dark:to-cyan-950/60 p-5 shadow-[0_22px_40px_-26px_rgba(14,116,144,0.6)]">
+              <div className="absolute -top-10 -right-8 w-36 h-36 rounded-full bg-cyan-300/40 blur-3xl dark:bg-cyan-500/30"></div>
+              <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full bg-emerald-300/40 blur-2xl dark:bg-emerald-500/20"></div>
+              <div className="relative">
+                <p className="inline-flex items-center gap-1 rounded-full border border-cyan-500/25 bg-white/70 dark:bg-slate-900/70 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-cyan-700 dark:text-cyan-200">
+                  <span className="material-symbols-outlined text-[14px]">bolt</span>
+                  Control Center
+                </p>
+                <h2 className="mt-3 text-2xl font-black leading-tight text-slate-900 dark:text-white">Admin Mission Board</h2>
+                <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">Track revenue, inventory pressure, and support load in one view.</p>
               </div>
-              <p className="text-text-sub text-xs font-medium uppercase tracking-wider mb-1">Total Revenue</p>
-              <p className="text-2xl font-bold text-text-main dark:text-white">${totalRevenue.toFixed(2)}</p>
+              <div className="relative mt-5 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-white/70 dark:border-slate-700/60 bg-white/75 dark:bg-slate-900/70 px-3 py-2 backdrop-blur">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Revenue</p>
+                  <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">${totalRevenue.toFixed(0)}</p>
+                </div>
+                <div className="rounded-2xl border border-white/70 dark:border-slate-700/60 bg-white/75 dark:bg-slate-900/70 px-3 py-2 backdrop-blur">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Orders</p>
+                  <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{adminOrders.length || orders.length}</p>
+                </div>
+                <div className="rounded-2xl border border-white/70 dark:border-slate-700/60 bg-white/75 dark:bg-slate-900/70 px-3 py-2 backdrop-blur">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Unread</p>
+                  <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{unreadChats}</p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 px-4 pb-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                  <span className="material-symbols-outlined text-[20px]">attach_money</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">Live</span>
+              </div>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-text-sub">Total Revenue</p>
+              <p className="mt-1 text-2xl font-black text-text-main dark:text-white">${totalRevenue.toFixed(2)}</p>
             </div>
-            <div className="min-w-[160px] flex-1 bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm snap-start">
-              <div className="flex items-start justify-between mb-2">
-                <div className="p-2 bg-warning/10 rounded-lg text-warning">
-                  <span className="material-symbols-outlined text-xl">package_2</span>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                  <span className="material-symbols-outlined text-[20px]">inventory_2</span>
                 </div>
-                <span className="text-xs font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">Live</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-sky-600">Stock</span>
               </div>
-              <p className="text-text-sub text-xs font-medium uppercase tracking-wider mb-1">Active Orders</p>
-              <p className="text-2xl font-bold text-text-main dark:text-white">{adminOrders.length || orders.length}</p>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-text-sub">Items Listed</p>
+              <p className="mt-1 text-2xl font-black text-text-main dark:text-white">{products.length}</p>
             </div>
-            <div className="min-w-[160px] flex-1 bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm snap-start">
-              <div className="flex items-start justify-between mb-2">
-                <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
-                  <span className="material-symbols-outlined text-xl">inventory</span>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                  <span className="material-symbols-outlined text-[20px]">package_2</span>
                 </div>
-                <span className="text-xs font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">Total</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Queue</span>
               </div>
-              <p className="text-text-sub text-xs font-medium uppercase tracking-wider mb-1">Stock Items</p>
-              <p className="text-2xl font-bold text-text-main dark:text-white">{products.length}</p>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-text-sub">Active Orders</p>
+              <p className="mt-1 text-2xl font-black text-text-main dark:text-white">{adminOrders.length || orders.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-300">
+                  <span className="material-symbols-outlined text-[20px]">chat_bubble</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-rose-600">Support</span>
+              </div>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-text-sub">Unread Chats</p>
+              <p className="mt-1 text-2xl font-black text-text-main dark:text-white">{unreadChats}</p>
             </div>
           </div>
 
           <div className="px-4 pb-4">
-            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
-              <h3 className="font-bold text-base text-slate-900 dark:text-white mb-3">Quick Actions</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <button onClick={onAddNew} className="rounded-xl bg-primary text-white px-3 py-2 text-sm font-semibold hover:bg-primary-dark transition-colors">Add Product</button>
-                <button onClick={() => setActiveTab('inventory')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Inventory</button>
-                <button onClick={() => setActiveTab('inbox')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Inbox</button>
-                <button onClick={onChat} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">User Chat</button>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+              <h3 className="font-black text-base text-slate-900 dark:text-white mb-3">Rapid Actions</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                <button onClick={onAddNew} className="rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-3 py-2.5 text-sm font-semibold hover:brightness-110 transition-all">Add Product</button>
+                <button onClick={() => setActiveTab('inventory')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Inventory Lab</button>
+                <button onClick={() => setActiveTab('inbox')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Support Inbox</button>
+                <button onClick={onChat} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Open User Chat</button>
               </div>
             </div>
           </div>
@@ -3245,6 +3280,84 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
         </div>
       )}
 
+      {activeTab === 'settings' && (
+        <div className="px-4 py-5 mb-20">
+          <section className="relative overflow-hidden rounded-3xl border border-amber-300/70 dark:border-amber-500/30 bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 dark:from-slate-900 dark:via-slate-950 dark:to-rose-950/40 p-5 shadow-[0_24px_44px_-30px_rgba(217,119,6,0.7)]">
+            <div className="absolute -right-10 -top-10 w-36 h-36 rounded-full bg-amber-300/45 blur-3xl dark:bg-amber-500/30"></div>
+            <div className="absolute -left-8 -bottom-8 w-32 h-32 rounded-full bg-rose-300/40 blur-2xl dark:bg-rose-500/20"></div>
+            <div className="relative">
+              <p className="inline-flex items-center gap-1.5 rounded-full bg-white/75 dark:bg-slate-900/70 border border-amber-500/30 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-200">
+                <span className="material-symbols-outlined text-[14px]">settings</span>
+                Admin Settings Hub
+              </p>
+              <h3 className="mt-3 text-2xl font-black text-slate-900 dark:text-white">Control What Matters Fast</h3>
+              <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">Tune the admin workspace to respond quicker to chats, stock changes, and order updates.</p>
+            </div>
+          </section>
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button onClick={() => toggleAdminPreference('liveAlerts')} className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm hover:border-primary/40 transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Live Alerts</p>
+                  <p className="text-xs text-text-sub mt-1">Bubble up new customer messages instantly.</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${adminPreferences.liveAlerts ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                  {adminPreferences.liveAlerts ? 'ON' : 'OFF'}
+                </span>
+              </div>
+            </button>
+
+            <button onClick={() => toggleAdminPreference('smartRestockHints')} className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm hover:border-primary/40 transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Smart Restock Hints</p>
+                  <p className="text-xs text-text-sub mt-1">Highlight inventory gaps from live order flow.</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${adminPreferences.smartRestockHints ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                  {adminPreferences.smartRestockHints ? 'ON' : 'OFF'}
+                </span>
+              </div>
+            </button>
+
+            <button onClick={() => toggleAdminPreference('guardedMode')} className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm hover:border-primary/40 transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Guarded Mode</p>
+                  <p className="text-xs text-text-sub mt-1">Require extra confirmation before risky actions.</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${adminPreferences.guardedMode ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                  {adminPreferences.guardedMode ? 'ON' : 'OFF'}
+                </span>
+              </div>
+            </button>
+
+            <button onClick={() => toggleAdminPreference('compactCards')} className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm hover:border-primary/40 transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Compact Cards</p>
+                  <p className="text-xs text-text-sub mt-1">Use tighter cards when managing large catalogs.</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${adminPreferences.compactCards ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                  {adminPreferences.compactCards ? 'ON' : 'OFF'}
+                </span>
+              </div>
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-4 shadow-sm">
+            <h4 className="text-sm font-black text-slate-900 dark:text-white">Admin Quick Kit</h4>
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <button onClick={() => setActiveTab('dashboard')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Mission Board</button>
+              <button onClick={() => setActiveTab('inbox')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Open Inbox</button>
+              <button onClick={() => setActiveTab('inventory')} className="rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Inventory Lab</button>
+              <button onClick={onAddNew} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-2.5 text-xs font-bold hover:brightness-110 transition-all">Add Product</button>
+            </div>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Live snapshot: {products.length} products, {adminOrders.length || orders.length} active orders, {unreadChats} unread chats.</p>
+          </div>
+        </div>
+      )}
+
       <nav className="fixed bottom-0 w-full bg-surface-light dark:bg-surface-dark border-t border-slate-200 dark:border-slate-800 px-2 pb-5 pt-3 flex justify-around items-end z-[60] shadow-[0_-5px_15px_-5px_rgba(0,0,0,0.05)]">
         <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'dashboard' ? 'text-primary' : 'text-text-sub'}`}>
           <span className={`material-symbols-outlined text-[26px] ${activeTab === 'dashboard' ? 'filled' : ''}`}>dashboard</span>
@@ -3274,10 +3387,11 @@ function AdminDashboard({ products, onAddNew, onEdit, onDelete, onBack, onChat, 
           <span className="text-[10px] font-medium">Inventory</span>
         </button>
 
-        <button onClick={onSettings} className="flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 group text-text-sub hover:text-primary">
-          <span className="material-symbols-outlined text-[26px] group-hover:-translate-y-0.5 transition-transform">settings</span>
-          <span className="text-[10px] font-medium">Settings</span>
+        <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 group ${activeTab === 'settings' ? 'text-primary' : 'text-text-sub hover:text-primary'}`}>
+          <span className={`material-symbols-outlined text-[26px] ${activeTab === 'settings' ? 'filled' : 'group-hover:-translate-y-0.5 transition-transform'}`}>settings</span>
+          <span className="text-[10px] font-medium">Admin</span>
         </button>
+
       </nav>
     </motion.div>
   );
@@ -4712,6 +4826,4 @@ function SplashScreen() {
     </motion.div>
   );
 }
-
-
 
